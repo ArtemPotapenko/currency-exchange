@@ -33,6 +33,10 @@ func NewExchangeService(
 
 func (s *ExchangeService) CreateRate(baseCode string, targetCode string, rate decimal.Decimal) (dto.ExchangeRateDto, error) {
 	log.Printf("exchange_service.create_rate start base=%s target=%s", baseCode, targetCode)
+	if err := validateRatePrecision(rate); err != nil {
+		log.Printf("exchange_service.create_rate validation_error: %v", err)
+		return dto.ExchangeRateDto{}, err
+	}
 	baseCurrency, err := s.currencyRepository.GetByCode(s.ctx, baseCode)
 	if err != nil {
 		return dto.ExchangeRateDto{}, s.wrapCurrencyError("base currency", baseCode, err)
@@ -59,6 +63,10 @@ func (s *ExchangeService) CreateRate(baseCode string, targetCode string, rate de
 
 func (s *ExchangeService) UpdateRate(id int64, baseCode string, targetCode string, rate decimal.Decimal) (dto.ExchangeRateDto, error) {
 	log.Printf("exchange_service.update_rate start id=%d", id)
+	if err := validateRatePrecision(rate); err != nil {
+		log.Printf("exchange_service.update_rate validation_error: %v", err)
+		return dto.ExchangeRateDto{}, err
+	}
 	baseCurrency, err := s.currencyRepository.GetByCode(s.ctx, baseCode)
 	if err != nil {
 		return dto.ExchangeRateDto{}, s.wrapCurrencyError("base currency", baseCode, err)
@@ -117,6 +125,10 @@ func (s *ExchangeService) Exchange(
 	if amount.LessThanOrEqual(decimal.Zero) {
 		log.Printf("exchange_service.exchange validation_error: non_positive amount=%s", amount.String())
 		return dto.ExchangeDto{}, apperror.Validation("amount must be greater than zero", "amount="+amount.String())
+	}
+	if err := validateAmountPrecision(amount); err != nil {
+		log.Printf("exchange_service.exchange validation_error: %v", err)
+		return dto.ExchangeDto{}, err
 	}
 
 	baseCurrency, err := s.currencyRepository.GetByCode(s.ctx, baseCode)
@@ -180,4 +192,24 @@ func mapRate(rate entity.ExchangeRate) dto.ExchangeRateDto {
 		TargetCurrency: mapCurrency(rate.TargetCurrency),
 		Rate:           rate.Rate,
 	}
+}
+
+func validateRatePrecision(rate decimal.Decimal) error {
+	if rate.Exponent() < -entity.ExchangeRateMaxScale {
+		return apperror.Validation(
+			"invalid exchange rate precision",
+			"rate must have no more than 6 decimal places",
+		)
+	}
+	return nil
+}
+
+func validateAmountPrecision(amount decimal.Decimal) error {
+	if amount.Exponent() < -entity.ExchangeAmountMaxScale {
+		return apperror.Validation(
+			"invalid amount precision",
+			"amount must have no more than 6 decimal places",
+		)
+	}
+	return nil
 }

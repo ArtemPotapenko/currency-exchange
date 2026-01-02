@@ -10,3 +10,8 @@ type ExchangeRate struct {
 	TargetCurrency Currency        `db:"target_currency"`
 	Rate           decimal.Decimal `db:"rate"`
 }
+
+const (
+	ExchangeRateMaxScale   = 6
+	ExchangeAmountMaxScale = 6
+)

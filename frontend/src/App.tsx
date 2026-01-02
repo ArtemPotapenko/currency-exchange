@@ -33,6 +33,17 @@ function normalizeDecimalInput(value: string) {
   return value.replace(",", ".");
 }
 
+function formatRateInput(value: string, maxDecimals = 6) {
+  const normalized = normalizeDecimalInput(value);
+  const parts = normalized.split(".");
+  if (parts.length === 1) {
+    return normalized;
+  }
+  const head = parts.shift() || "";
+  const fraction = parts.join("");
+  return `${head}.${fraction.slice(0, maxDecimals)}`;
+}
+
 export default function App() {
   const [currencies, setCurrencies] = useState<CurrencyDto[]>([]);
   const [currencyError, setCurrencyError] = useState("");
@@ -172,7 +183,7 @@ export default function App() {
         onExchange={handleExchange}
         exchangeResult={exchangeResult}
         exchangeError={exchangeError}
-        normalizeDecimalInput={normalizeDecimalInput}
+        formatAmountInput={(value) => formatRateInput(value, 6)}
         formatMoney={formatMoney}
       />
       <main className="grid">
@@ -200,7 +211,7 @@ export default function App() {
           error={rateError}
           onChange={setNewRate}
           onSubmit={handleCreateRate}
-          normalizeDecimalInput={normalizeDecimalInput}
+          formatRateInput={(value) => formatRateInput(value, 6)}
         />
       </main>
     </div>

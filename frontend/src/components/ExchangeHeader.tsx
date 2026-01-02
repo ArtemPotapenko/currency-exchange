@@ -11,7 +11,7 @@ type HeroExchangeProps = {
   onExchange: (form: ExchangeForm) => Promise<void>;
   exchangeResult: ExchangeDto | null;
   exchangeError: string;
-  normalizeDecimalInput: (value: string) => string;
+  formatAmountInput: (value: string) => string;
   formatMoney: (value: string | null | undefined) => string;
 };
 
@@ -19,7 +19,7 @@ export default function ExchangeHeader({
   onExchange,
   exchangeResult,
   exchangeError,
-  normalizeDecimalInput,
+  formatAmountInput,
   formatMoney,
 }: HeroExchangeProps) {
   const [form, setForm] = useState<ExchangeForm>({
@@ -68,7 +68,7 @@ export default function ExchangeHeader({
             onChange={(event) =>
               setForm({
                 ...form,
-                amount: normalizeDecimalInput(event.target.value),
+                amount: formatAmountInput(event.target.value),
               })
             }
           />

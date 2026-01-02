@@ -12,7 +12,7 @@ type RatePanelProps = {
   error: string;
   onChange: (nextForm: RateForm) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-  normalizeDecimalInput: (value: string) => string;
+  formatRateInput: (value: string) => string;
 };
 
 export default function RatePanel({
@@ -21,7 +21,7 @@ export default function RatePanel({
   error,
   onChange,
   onSubmit,
-  normalizeDecimalInput,
+  formatRateInput,
 }: RatePanelProps) {
   return (
     <section className="panel">
@@ -49,7 +49,7 @@ export default function RatePanel({
           onChange={(event) =>
             onChange({
               ...form,
-              rate: normalizeDecimalInput(event.target.value),
+              rate: formatRateInput(event.target.value),
             })
           }
         />
