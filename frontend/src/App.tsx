@@ -50,7 +50,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [currencyMessage, setCurrencyMessage] = useState("");
   const [currencyPageNumber, setCurrencyPageNumber] = useState(1);
-  const [currencyPageSize, setCurrencyPageSize] = useState(20);
+  const [currencyPageSize, setCurrencyPageSize] = useState(6);
   const [currencyTotal, setCurrencyTotal] = useState(0);
   const [newCurrency, setNewCurrency] = useState<CurrencyForm>({
     code: "",
