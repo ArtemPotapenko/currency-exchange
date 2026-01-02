@@ -76,7 +76,7 @@ export default function CurrencyPanel({
             value={pageSize}
             onChange={(event) => onPageSizeChange(Number(event.target.value))}
           >
-            {[5, 10, 20, 50].map((size) => (
+            {[6, 12, 18].map((size) => (
               <option key={size} value={size}>
                 {size}
               </option>
