@@ -104,11 +104,13 @@ export default function CurrencyPanel({
         <input
           placeholder="Code"
           value={form.code}
+          maxLength={3}
           onChange={(event) => onChange({ ...form, code: event.target.value })}
         />
         <input
           placeholder="Full name"
           value={form.fullName}
+          maxLength={40}
           onChange={(event) =>
             onChange({ ...form, fullName: event.target.value })
           }
@@ -116,6 +118,7 @@ export default function CurrencyPanel({
         <input
           placeholder="Sign"
           value={form.sign}
+          maxLength={3}
           onChange={(event) => onChange({ ...form, sign: event.target.value })}
         />
         <button className="primary" type="submit">

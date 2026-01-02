@@ -31,6 +31,7 @@ export default function RatePanel({
           <input
             placeholder="Base"
             value={form.baseCode}
+            maxLength={3}
             onChange={(event) =>
               onChange({ ...form, baseCode: event.target.value })
             }
@@ -38,6 +39,7 @@ export default function RatePanel({
           <input
             placeholder="Target"
             value={form.targetCode}
+            maxLength={3}
             onChange={(event) =>
               onChange({ ...form, targetCode: event.target.value })
             }
@@ -46,6 +48,7 @@ export default function RatePanel({
         <input
           placeholder="Rate"
           value={form.rate}
+          inputMode="decimal"
           onChange={(event) =>
             onChange({
               ...form,

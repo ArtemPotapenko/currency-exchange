@@ -50,6 +50,7 @@ export default function ExchangeHeader({
             <input
               placeholder="Base"
               value={form.base}
+              maxLength={3}
               onChange={(event) =>
                 setForm({ ...form, base: event.target.value })
               }
@@ -57,6 +58,7 @@ export default function ExchangeHeader({
             <input
               placeholder="Target"
               value={form.target}
+              maxLength={3}
               onChange={(event) =>
                 setForm({ ...form, target: event.target.value })
               }
@@ -65,6 +67,7 @@ export default function ExchangeHeader({
           <input
             placeholder="Amount"
             value={form.amount}
+            inputMode="decimal"
             onChange={(event) =>
               setForm({
                 ...form,
