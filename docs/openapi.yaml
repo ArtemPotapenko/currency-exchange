@@ -14,13 +14,11 @@ paths:
           schema:
             type: integer
             minimum: 1
-          required: false
         - in: query
           name: pageSize
           schema:
             type: integer
             minimum: 1
-          required: false
       responses:
         "200":
           description: Currency page
@@ -309,8 +307,8 @@ components:
         targetCurrency:
           $ref: "#/components/schemas/Currency"
         rate:
-          type: string
-          description: Decimal string
+          type: number
+          format: double
       required:
         - id
         - baseCurrency
@@ -322,11 +320,11 @@ components:
         exchangeRate:
           $ref: "#/components/schemas/ExchangeRate"
         amount:
-          type: string
-          description: Decimal string
+          type: number
+          format: double
         convertAmount:
-          type: string
-          description: Decimal string
+          type: number
+          format: double
       required:
         - exchangeRate
         - amount
@@ -352,8 +350,8 @@ components:
         targetCode:
           type: string
         rate:
-          type: string
-          description: Decimal string
+          type: number
+          format: double
       required:
         - baseCode
         - targetCode
@@ -366,8 +364,8 @@ components:
         targetCode:
           type: string
         rate:
-          type: string
-          description: Decimal string
+          type: number
+          format: double
       required:
         - baseCode
         - targetCode
