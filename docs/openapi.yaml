@@ -1,0 +1,372 @@
+openapi: 3.0.3
+info:
+  title: Currency Exchange API
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+paths:
+  /currencies:
+    get:
+      summary: List currencies
+      parameters:
+        - in: query
+          name: pageNumber
+          schema:
+            type: integer
+            minimum: 1
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Currency page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrencyPage"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      summary: Create currency
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCurrencyRequest"
+      responses:
+        "201":
+          description: Created currency
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Currency"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /currencies/{code}:
+    get:
+      summary: Get currency by code
+      parameters:
+        - in: path
+          name: code
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Currency
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Currency"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /rates:
+    post:
+      summary: Create exchange rate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRateRequest"
+      responses:
+        "201":
+          description: Created rate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExchangeRate"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /rates/{id}:
+    get:
+      summary: Get exchange rate by id
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: Exchange rate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExchangeRate"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    put:
+      summary: Update exchange rate
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRateRequest"
+      responses:
+        "200":
+          description: Updated rate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExchangeRate"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /exchange:
+    get:
+      summary: Exchange currency
+      parameters:
+        - in: query
+          name: base
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: target
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: amount
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Exchange result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Exchange"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+    Currency:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        code:
+          type: string
+        fullName:
+          type: string
+        sign:
+          type: string
+      required:
+        - id
+        - code
+        - fullName
+        - sign
+    CurrencyPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Currency"
+        pageNumber:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+      required:
+        - items
+        - pageNumber
+        - pageSize
+        - total
+    ExchangeRate:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        baseCurrency:
+          $ref: "#/components/schemas/Currency"
+        targetCurrency:
+          $ref: "#/components/schemas/Currency"
+        rate:
+          type: number
+          format: double
+      required:
+        - id
+        - baseCurrency
+        - targetCurrency
+        - rate
+    Exchange:
+      type: object
+      properties:
+        exchangeRate:
+          $ref: "#/components/schemas/ExchangeRate"
+        amount:
+          type: number
+          format: double
+        convertAmount:
+          type: number
+          format: double
+      required:
+        - exchangeRate
+        - amount
+        - convertAmount
+    CreateCurrencyRequest:
+      type: object
+      properties:
+        code:
+          type: string
+        fullName:
+          type: string
+        sign:
+          type: string
+      required:
+        - code
+        - fullName
+        - sign
+    CreateRateRequest:
+      type: object
+      properties:
+        baseCode:
+          type: string
+        targetCode:
+          type: string
+        rate:
+          type: number
+          format: double
+      required:
+        - baseCode
+        - targetCode
+        - rate
+    UpdateRateRequest:
+      type: object
+      properties:
+        baseCode:
+          type: string
+        targetCode:
+          type: string
+        rate:
+          type: number
+          format: double
+      required:
+        - baseCode
+        - targetCode
+        - rate
