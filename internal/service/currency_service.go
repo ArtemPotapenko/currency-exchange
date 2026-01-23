@@ -8,53 +8,28 @@ import (
 	"currency-exchange/internal/pagination"
 	"currency-exchange/internal/repository"
 	"errors"
-	"fmt"
 	"log"
-	"unicode/utf8"
 )
 
 type CurrencyService struct {
-	ctx                context.Context
 	currencyRepository repository.CurrencyRepository
 }
 
-func NewCurrencyService(ctx context.Context, currencyRepository repository.CurrencyRepository) *CurrencyService {
-	return &CurrencyService{ctx: ctx, currencyRepository: currencyRepository}
+func NewCurrencyService(currencyRepository repository.CurrencyRepository) *CurrencyService {
+	return &CurrencyService{currencyRepository: currencyRepository}
 }
 
-func (c *CurrencyService) CreateCurrency(code string, fullName string, sign string) (dto.CurrencyDto, error) {
-	log.Printf("currency_service.create_currency start code=%s", code)
-	if len(code) == 0 || utf8.RuneCountInString(code) > entity.CurrencyCodeMaxLen {
-		log.Printf("currency_service.create_currency validation_error code=%s", code)
-		return dto.CurrencyDto{}, apperror.Validation(
-			"invalid currency code",
-			"code must be 1.."+fmt.Sprint(entity.CurrencyCodeMaxLen)+" symbols",
-		)
+func (c *CurrencyService) CreateCurrency(ctx context.Context, request dto.CreateCurrencyRequest) (dto.CurrencyDto, error) {
+	log.Printf("currency_service.create_currency start code=%s", request.Code)
+	if err := request.Validate(); err != nil {
+		return dto.CurrencyDto{}, err
 	}
-	if len(sign) == 0 || utf8.RuneCountInString(sign) > entity.CurrencySignMaxLen {
-		log.Printf("currency_service.create_currency validation_error sign=%s", sign)
-		return dto.CurrencyDto{}, apperror.Validation(
-			"invalid currency sign",
-			"sign must be 1.."+fmt.Sprint(entity.CurrencySignMaxLen)+" symbols",
-		)
-	}
-	if utf8.RuneCountInString(fullName) < entity.CurrencyFullNameMinLen ||
-		utf8.RuneCountInString(fullName) > entity.CurrencyFullNameMaxLen {
-		log.Printf("currency_service.create_currency validation_error full_name=%s", fullName)
-		return dto.CurrencyDto{}, apperror.Validation(
-			"invalid currency full name",
-			"full name length must be "+
-				fmt.Sprint(entity.CurrencyFullNameMinLen)+".."+
-				fmt.Sprint(entity.CurrencyFullNameMaxLen)+" symbols",
-		)
-	}
-
 	currency := entity.Currency{
-		Code:     code,
-		FullName: fullName,
-		Sign:     sign,
+		Code:     request.Code,
+		FullName: request.FullName,
+		Sign:     request.Sign,
 	}
-	id, err := c.currencyRepository.Create(c.ctx, currency)
+	id, err := c.currencyRepository.Create(ctx, currency)
 	if err != nil {
 		log.Printf("currency_service.create_currency error: %v", err)
 		return dto.CurrencyDto{}, apperror.Internal("create currency", err.Error())
@@ -64,14 +39,14 @@ func (c *CurrencyService) CreateCurrency(code string, fullName string, sign stri
 	return mapCurrency(currency), nil
 }
 
-func (c *CurrencyService) GetCurrencyByCode(code string) (dto.CurrencyDto, error) {
+func (c *CurrencyService) GetCurrencyByCode(ctx context.Context, code string) (dto.CurrencyDto, error) {
 	log.Printf("currency_service.get_currency_by_code start code=%s", code)
 	if code == "" {
 		log.Printf("currency_service.get_currency_by_code validation_error: empty code")
 		return dto.CurrencyDto{}, apperror.Validation("currency code is required", "empty code")
 	}
 
-	currency, err := c.currencyRepository.GetByCode(c.ctx, code)
+	currency, err := c.currencyRepository.GetByCode(ctx, code)
 	if err != nil {
 		var notFoundErr *apperror.NotFoundError
 		if errors.As(err, &notFoundErr) {
@@ -86,7 +61,7 @@ func (c *CurrencyService) GetCurrencyByCode(code string) (dto.CurrencyDto, error
 	return mapCurrency(currency), nil
 }
 
-func (c *CurrencyService) GetAllCurrencyPage(request pagination.PageRequest) (pagination.Page[dto.CurrencyDto], error) {
+func (c *CurrencyService) GetAllCurrencyPage(ctx context.Context, request pagination.PageRequest) (pagination.Page[dto.CurrencyDto], error) {
 	log.Printf("currency_service.get_all_currency_page start page=%d size=%d", request.PageNumber, request.PageSize)
 	if request.PageNumber < 1 || request.PageSize < 1 {
 		log.Printf("currency_service.get_all_currency_page validation_error page=%d size=%d", request.PageNumber, request.PageSize)
@@ -96,7 +71,7 @@ func (c *CurrencyService) GetAllCurrencyPage(request pagination.PageRequest) (pa
 		)
 	}
 
-	page, err := c.currencyRepository.GetPage(c.ctx, request)
+	page, err := c.currencyRepository.GetPage(ctx, request)
 	if err != nil {
 		log.Printf("currency_service.get_all_currency_page error: %v", err)
 		return pagination.Page[dto.CurrencyDto]{}, apperror.Internal("get currency page", err.Error())

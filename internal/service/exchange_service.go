@@ -9,49 +9,43 @@ import (
 	"errors"
 	"fmt"
 	"log"
-
-	"github.com/shopspring/decimal"
 )
 
 type ExchangeService struct {
-	ctx                context.Context
 	exchangeRepository repository.ExchangeRepository
 	currencyRepository repository.CurrencyRepository
 }
 
 func NewExchangeService(
-	ctx context.Context,
 	exchangeRepository repository.ExchangeRepository,
 	currencyRepository repository.CurrencyRepository,
 ) *ExchangeService {
 	return &ExchangeService{
-		ctx:                ctx,
 		exchangeRepository: exchangeRepository,
 		currencyRepository: currencyRepository,
 	}
 }
 
-func (s *ExchangeService) CreateRate(baseCode string, targetCode string, rate decimal.Decimal) (dto.ExchangeRateDto, error) {
-	log.Printf("exchange_service.create_rate start base=%s target=%s", baseCode, targetCode)
-	if err := validateRatePrecision(rate); err != nil {
-		log.Printf("exchange_service.create_rate validation_error: %v", err)
+func (s *ExchangeService) CreateRate(ctx context.Context, request dto.CreateRateRequest) (dto.ExchangeRateDto, error) {
+	log.Printf("exchange_service.create_rate start base=%s target=%s", request.BaseCode, request.TargetCode)
+	if err := request.Validate(); err != nil {
 		return dto.ExchangeRateDto{}, err
 	}
-	baseCurrency, err := s.currencyRepository.GetByCode(s.ctx, baseCode)
+	baseCurrency, err := s.currencyRepository.GetByCode(ctx, request.BaseCode)
 	if err != nil {
-		return dto.ExchangeRateDto{}, s.wrapCurrencyError("base currency", baseCode, err)
+		return dto.ExchangeRateDto{}, s.wrapCurrencyError("base currency", request.BaseCode, err)
 	}
-	targetCurrency, err := s.currencyRepository.GetByCode(s.ctx, targetCode)
+	targetCurrency, err := s.currencyRepository.GetByCode(ctx, request.TargetCode)
 	if err != nil {
-		return dto.ExchangeRateDto{}, s.wrapCurrencyError("target currency", targetCode, err)
+		return dto.ExchangeRateDto{}, s.wrapCurrencyError("target currency", request.TargetCode, err)
 	}
 
 	entityRate := entity.ExchangeRate{
 		BaseCurrency:   baseCurrency,
 		TargetCurrency: targetCurrency,
-		Rate:           rate,
+		Rate:           request.Rate,
 	}
-	id, err := s.exchangeRepository.Create(s.ctx, entityRate)
+	id, err := s.exchangeRepository.Create(ctx, entityRate)
 	if err != nil {
 		log.Printf("exchange_service.create_rate error: %v", err)
 		return dto.ExchangeRateDto{}, apperror.Internal("create exchange rate", err.Error())
@@ -61,28 +55,27 @@ func (s *ExchangeService) CreateRate(baseCode string, targetCode string, rate de
 	return mapRate(entityRate), nil
 }
 
-func (s *ExchangeService) UpdateRate(id int64, baseCode string, targetCode string, rate decimal.Decimal) (dto.ExchangeRateDto, error) {
+func (s *ExchangeService) UpdateRate(ctx context.Context, id int64, request dto.UpdateRateRequest) (dto.ExchangeRateDto, error) {
 	log.Printf("exchange_service.update_rate start id=%d", id)
-	if err := validateRatePrecision(rate); err != nil {
-		log.Printf("exchange_service.update_rate validation_error: %v", err)
+	if err := request.Validate(); err != nil {
 		return dto.ExchangeRateDto{}, err
 	}
-	baseCurrency, err := s.currencyRepository.GetByCode(s.ctx, baseCode)
+	baseCurrency, err := s.currencyRepository.GetByCode(ctx, request.BaseCode)
 	if err != nil {
-		return dto.ExchangeRateDto{}, s.wrapCurrencyError("base currency", baseCode, err)
+		return dto.ExchangeRateDto{}, s.wrapCurrencyError("base currency", request.BaseCode, err)
 	}
-	targetCurrency, err := s.currencyRepository.GetByCode(s.ctx, targetCode)
+	targetCurrency, err := s.currencyRepository.GetByCode(ctx, request.TargetCode)
 	if err != nil {
-		return dto.ExchangeRateDto{}, s.wrapCurrencyError("target currency", targetCode, err)
+		return dto.ExchangeRateDto{}, s.wrapCurrencyError("target currency", request.TargetCode, err)
 	}
 
 	entityRate := entity.ExchangeRate{
 		ID:             id,
 		BaseCurrency:   baseCurrency,
 		TargetCurrency: targetCurrency,
-		Rate:           rate,
+		Rate:           request.Rate,
 	}
-	if err := s.exchangeRepository.Update(s.ctx, entityRate); err != nil {
+	if err := s.exchangeRepository.Update(ctx, entityRate); err != nil {
 		var notFoundErr *apperror.NotFoundError
 		if errors.As(err, &notFoundErr) {
 			log.Printf("exchange_service.update_rate not_found id=%d", id)
@@ -96,9 +89,9 @@ func (s *ExchangeService) UpdateRate(id int64, baseCode string, targetCode strin
 	return mapRate(entityRate), nil
 }
 
-func (s *ExchangeService) GetRateByID(id int64) (dto.ExchangeRateDto, error) {
+func (s *ExchangeService) GetRateByID(ctx context.Context, id int64) (dto.ExchangeRateDto, error) {
 	log.Printf("exchange_service.get_rate_by_id start id=%d", id)
-	rate, err := s.exchangeRepository.GetByID(s.ctx, id)
+	rate, err := s.exchangeRepository.GetByID(ctx, id)
 	if err != nil {
 		var notFoundErr *apperror.NotFoundError
 		if errors.As(err, &notFoundErr) {
@@ -113,35 +106,25 @@ func (s *ExchangeService) GetRateByID(id int64) (dto.ExchangeRateDto, error) {
 }
 
 func (s *ExchangeService) Exchange(
-	baseCode string,
-	targetCode string,
-	amount decimal.Decimal,
+	ctx context.Context,
+	request dto.ExchangeRequest,
 ) (dto.ExchangeDto, error) {
-	log.Printf("exchange_service.exchange start base=%s target=%s amount=%s", baseCode, targetCode, amount.String())
-	if baseCode == "" || targetCode == "" {
-		log.Printf("exchange_service.exchange validation_error: empty code")
-		return dto.ExchangeDto{}, apperror.Validation("currency codes are required", "base or target code is empty")
-	}
-	if amount.LessThanOrEqual(decimal.Zero) {
-		log.Printf("exchange_service.exchange validation_error: non_positive amount=%s", amount.String())
-		return dto.ExchangeDto{}, apperror.Validation("amount must be greater than zero", "amount="+amount.String())
-	}
-	if err := validateAmountPrecision(amount); err != nil {
-		log.Printf("exchange_service.exchange validation_error: %v", err)
+	log.Printf("exchange_service.exchange start base=%s target=%s amount=%s", request.BaseCode, request.TargetCode, request.Amount.String())
+	if err := request.Validate(); err != nil {
 		return dto.ExchangeDto{}, err
 	}
 
-	baseCurrency, err := s.currencyRepository.GetByCode(s.ctx, baseCode)
+	baseCurrency, err := s.currencyRepository.GetByCode(ctx, request.BaseCode)
 	if err != nil {
-		return dto.ExchangeDto{}, s.wrapCurrencyError("base currency", baseCode, err)
+		return dto.ExchangeDto{}, s.wrapCurrencyError("base currency", request.BaseCode, err)
 	}
 
-	targetCurrency, err := s.currencyRepository.GetByCode(s.ctx, targetCode)
+	targetCurrency, err := s.currencyRepository.GetByCode(ctx, request.TargetCode)
 	if err != nil {
-		return dto.ExchangeDto{}, s.wrapCurrencyError("target currency", targetCode, err)
+		return dto.ExchangeDto{}, s.wrapCurrencyError("target currency", request.TargetCode, err)
 	}
 
-	rate, err := s.exchangeRepository.GetRate(s.ctx, baseCurrency.ID, targetCurrency.ID)
+	rate, err := s.exchangeRepository.GetRate(ctx, baseCurrency.ID, targetCurrency.ID)
 	if err != nil {
 		var notFoundErr *apperror.NotFoundError
 		if errors.As(err, &notFoundErr) {
@@ -168,10 +151,10 @@ func (s *ExchangeService) Exchange(
 			},
 			Rate: rate,
 		},
-		Amount:        amount,
-		ConvertAmount: amount.Mul(rate),
+		Amount:        request.Amount,
+		ConvertAmount: request.Amount.Mul(rate),
 	}
-	log.Printf("exchange_service.exchange ok base=%s target=%s amount=%s converted=%s", baseCode, targetCode, amount.String(), result.ConvertAmount.String())
+	log.Printf("exchange_service.exchange ok base=%s target=%s amount=%s converted=%s", request.BaseCode, request.TargetCode, request.Amount.String(), result.ConvertAmount.String())
 	return result, nil
 }
 
@@ -192,24 +175,4 @@ func mapRate(rate entity.ExchangeRate) dto.ExchangeRateDto {
 		TargetCurrency: mapCurrency(rate.TargetCurrency),
 		Rate:           rate.Rate,
 	}
-}
-
-func validateRatePrecision(rate decimal.Decimal) error {
-	if rate.Exponent() < -entity.ExchangeRateMaxScale {
-		return apperror.Validation(
-			"invalid exchange rate precision",
-			"rate must have no more than 6 decimal places",
-		)
-	}
-	return nil
-}
-
-func validateAmountPrecision(amount decimal.Decimal) error {
-	if amount.Exponent() < -entity.ExchangeAmountMaxScale {
-		return apperror.Validation(
-			"invalid amount precision",
-			"amount must have no more than 6 decimal places",
-		)
-	}
-	return nil
 }

@@ -1,12 +1,11 @@
 package main
 
 import (
-	"context"
+	"currency-exchange/internal/config"
 	httpserver "currency-exchange/internal/http"
 	"database/sql"
 	"log"
 	"net/http"
-	"os"
 	"time"
 
 	"currency-exchange/internal/repository/db"
@@ -16,9 +15,10 @@ import (
 )
 
 func main() {
-	addr := getEnvOrDefault("HTTP_ADDR", ":8080")
+	addr := config.HTTPAddr()
 
-	dsn := postgresDSNFromEnv()
+	pgConfig := config.PostgresConfigFromEnv()
+	dsn := pgConfig.DSN()
 	dbConn, err := sql.Open("postgres", dsn)
 	if err != nil {
 		log.Fatalf("db open error: %v", err)
@@ -30,9 +30,8 @@ func main() {
 	currencyRepo := db.NewCurrencyRepository(dbConn)
 	exchangeRepo := db.NewExchangeRepository(dbConn)
 
-	ctx := context.Background()
-	currencyService := service.NewCurrencyService(ctx, currencyRepo)
-	exchangeService := service.NewExchangeService(ctx, exchangeRepo, currencyRepo)
+	currencyService := service.NewCurrencyService(currencyRepo)
+	exchangeService := service.NewExchangeService(exchangeRepo, currencyRepo)
 
 	handler := httpserver.LoggingMiddleware(httpserver.New(currencyService, exchangeService))
 
@@ -53,28 +52,4 @@ func pingWithRetry(dbConn *sql.DB, attempts int, delay time.Duration) error {
 		time.Sleep(delay)
 	}
 	return err
-}
-
-func postgresDSNFromEnv() string {
-	host := getEnvOrDefault("PG_HOST", "localhost")
-	port := getEnvOrDefault("PG_PORT", "5432")
-	user := getEnvOrDefault("PG_USER", "postgres")
-	password := getEnvOrDefault("PG_PASSWORD", "postgres")
-	dbname := getEnvOrDefault("PG_DBNAME", "postgres")
-	sslmode := getEnvOrDefault("PG_SSLMODE", "disable")
-
-	return "host=" + host +
-		" port=" + port +
-		" user=" + user +
-		" password=" + password +
-		" dbname=" + dbname +
-		" sslmode=" + sslmode
-}
-
-func getEnvOrDefault(key string, deafaultValue string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		return deafaultValue
-	}
-	return value
 }

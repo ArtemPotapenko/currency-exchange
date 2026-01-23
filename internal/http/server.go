@@ -68,10 +68,12 @@ func (s *CurrencyServer) handleCurrenciesGet(w http.ResponseWriter, r *http.Requ
 		writeError(w, apperror.Validation("invalid pagination", err.Error()))
 		return
 	}
-	page, err := s.currencyService.GetAllCurrencyPage(pagination.PageRequest{
-		PageNumber: pageNumber,
-		PageSize:   pageSize,
-	})
+	page, err := s.currencyService.GetAllCurrencyPage(
+		r.Context(),
+		pagination.PageRequest{
+			PageNumber: pageNumber,
+			PageSize:   pageSize,
+		})
 	if err != nil {
 		writeError(w, err)
 		return
@@ -94,7 +96,7 @@ func (s *CurrencyServer) handleCurrenciesPost(w http.ResponseWriter, r *http.Req
 		writeError(w, apperror.Validation("invalid request", err.Error()))
 		return
 	}
-	currency, err := s.currencyService.CreateCurrency(req.Code, req.FullName, req.Sign)
+	currency, err := s.currencyService.CreateCurrency(r.Context(), req)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -122,7 +124,7 @@ func (s *CurrencyServer) handleCurrencyByCode(w http.ResponseWriter, r *http.Req
 		writeError(w, apperror.Validation("currency code is required", "empty code"))
 		return
 	}
-	currency, err := s.currencyService.GetCurrencyByCode(code)
+	currency, err := s.currencyService.GetCurrencyByCode(r.Context(), code)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -155,7 +157,7 @@ func (s *CurrencyServer) handleRatesPost(w http.ResponseWriter, r *http.Request)
 		writeError(w, apperror.Validation("invalid request", err.Error()))
 		return
 	}
-	rate, err := s.exchangeService.CreateRate(req.BaseCode, req.TargetCode, req.Rate)
+	rate, err := s.exchangeService.CreateRate(r.Context(), req)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -196,7 +198,7 @@ func (s *CurrencyServer) handleRateByID(w http.ResponseWriter, r *http.Request) 
 // @Failure 500 {object} dto.ErrorDto
 // @Router /rates/{id} [get]
 func (s *CurrencyServer) handleRateByIDGet(w http.ResponseWriter, r *http.Request, id int64) {
-	rate, err := s.exchangeService.GetRateByID(id)
+	rate, err := s.exchangeService.GetRateByID(r.Context(), id)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -221,7 +223,7 @@ func (s *CurrencyServer) handleRateByIDPut(w http.ResponseWriter, r *http.Reques
 		writeError(w, apperror.Validation("invalid request", err.Error()))
 		return
 	}
-	rate, err := s.exchangeService.UpdateRate(id, req.BaseCode, req.TargetCode, req.Rate)
+	rate, err := s.exchangeService.UpdateRate(r.Context(), id, req)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -254,7 +256,13 @@ func (s *CurrencyServer) handleExchange(w http.ResponseWriter, r *http.Request) 
 		writeError(w, apperror.Validation("invalid amount", err.Error()))
 		return
 	}
-	result, err := s.exchangeService.Exchange(baseCode, targetCode, amount)
+	result, err := s.exchangeService.Exchange(
+		r.Context(),
+		dto.ExchangeRequest{
+			BaseCode:   baseCode,
+			TargetCode: targetCode,
+			Amount:     amount,
+		})
 	if err != nil {
 		writeError(w, err)
 		return
