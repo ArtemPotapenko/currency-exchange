@@ -10,6 +10,7 @@ import (
 
 	"currency-exchange/internal/repository/db"
 	"currency-exchange/internal/service"
+	"currency-exchange/pkg/postgres"
 
 	_ "github.com/lib/pq"
 )
@@ -23,7 +24,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("db open error: %v", err)
 	}
-	if err := pingWithRetry(dbConn, 10, 2*time.Second); err != nil {
+	if err := postgres.PingWithRetry(dbConn, 10, 2*time.Second); err != nil {
 		log.Fatalf("db ping error: %v", err)
 	}
 
@@ -39,17 +40,4 @@ func main() {
 	if err := http.ListenAndServe(addr, handler); err != nil {
 		log.Fatalf("http server error: %v", err)
 	}
-}
-
-func pingWithRetry(dbConn *sql.DB, attempts int, delay time.Duration) error {
-	var err error
-	for i := 0; i < attempts; i++ {
-		err = dbConn.Ping()
-		if err == nil {
-			return nil
-		}
-		log.Printf("db ping failed (attempt %d/%d): %v", i+1, attempts, err)
-		time.Sleep(delay)
-	}
-	return err
 }
