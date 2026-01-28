@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"currency-exchange/internal/config"
 	httpserver "currency-exchange/internal/http"
 	"database/sql"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"time"
 
 	"currency-exchange/internal/repository/db"
@@ -34,10 +37,30 @@ func main() {
 	currencyService := service.NewCurrencyService(currencyRepo)
 	exchangeService := service.NewExchangeService(exchangeRepo, currencyRepo)
 
-	handler := httpserver.LoggingMiddleware(httpserver.New(currencyService, exchangeService))
+	mux := http.NewServeMux()
+	handler := httpserver.LoggingMiddleware(httpserver.New(mux, currencyService, exchangeService))
 
 	log.Printf("http server listening on %s", addr)
-	if err := http.ListenAndServe(addr, handler); err != nil {
-		log.Fatalf("http server error: %v", err)
+	server := &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("http server error: %v", err)
+		}
+	}()
+
+	stopCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	<-stopCtx.Done()
+	log.Printf("shutdown signal received")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := server.Shutdown(ctx); err != nil {
+		log.Printf("http server shutdown error: %v", err)
 	}
 }

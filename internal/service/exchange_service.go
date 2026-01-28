@@ -4,8 +4,8 @@ import (
 	"context"
 	"currency-exchange/internal/dto"
 	"currency-exchange/internal/entity"
-	apperror "currency-exchange/internal/error"
-	"currency-exchange/internal/repository"
+	"currency-exchange/internal/errs"
+	repository "currency-exchange/internal/repository/db"
 	"errors"
 	"fmt"
 	"log"
@@ -48,7 +48,7 @@ func (s *ExchangeService) CreateRate(ctx context.Context, request dto.CreateRate
 	id, err := s.exchangeRepository.Create(ctx, entityRate)
 	if err != nil {
 		log.Printf("exchange_service.create_rate error: %v", err)
-		return dto.ExchangeRateDto{}, apperror.Internal("create exchange rate", err.Error())
+		return dto.ExchangeRateDto{}, fmt.Errorf("%w: create exchange rate", errs.ErrInternal)
 	}
 	entityRate.ID = id
 	log.Printf("exchange_service.create_rate ok id=%d", id)
@@ -76,13 +76,12 @@ func (s *ExchangeService) UpdateRate(ctx context.Context, id int64, request dto.
 		Rate:           request.Rate,
 	}
 	if err := s.exchangeRepository.Update(ctx, entityRate); err != nil {
-		var notFoundErr *apperror.NotFoundError
-		if errors.As(err, &notFoundErr) {
+		if errors.Is(err, errs.ErrNotFound) {
 			log.Printf("exchange_service.update_rate not_found id=%d", id)
-			return dto.ExchangeRateDto{}, apperror.NotFound("exchange rate not found", "id="+fmt.Sprint(id))
+			return dto.ExchangeRateDto{}, fmt.Errorf("%w: exchange rate not found", errs.ErrNotFound)
 		}
 		log.Printf("exchange_service.update_rate error: %v", err)
-		return dto.ExchangeRateDto{}, apperror.Internal("update exchange rate", err.Error())
+		return dto.ExchangeRateDto{}, fmt.Errorf("%w: update exchange rate", errs.ErrInternal)
 	}
 
 	log.Printf("exchange_service.update_rate ok id=%d", id)
@@ -93,13 +92,12 @@ func (s *ExchangeService) GetRateByID(ctx context.Context, id int64) (dto.Exchan
 	log.Printf("exchange_service.get_rate_by_id start id=%d", id)
 	rate, err := s.exchangeRepository.GetByID(ctx, id)
 	if err != nil {
-		var notFoundErr *apperror.NotFoundError
-		if errors.As(err, &notFoundErr) {
+		if errors.Is(err, errs.ErrNotFound) {
 			log.Printf("exchange_service.get_rate_by_id not_found id=%d", id)
-			return dto.ExchangeRateDto{}, apperror.NotFound("exchange rate not found", "id="+fmt.Sprint(id))
+			return dto.ExchangeRateDto{}, fmt.Errorf("%w: exchange rate not found", errs.ErrNotFound)
 		}
 		log.Printf("exchange_service.get_rate_by_id error: %v", err)
-		return dto.ExchangeRateDto{}, apperror.Internal("get exchange rate by id", err.Error())
+		return dto.ExchangeRateDto{}, fmt.Errorf("%w: get exchange rate by id", errs.ErrInternal)
 	}
 	log.Printf("exchange_service.get_rate_by_id ok id=%d", rate.ID)
 	return mapRate(rate), nil
@@ -126,13 +124,12 @@ func (s *ExchangeService) Exchange(
 
 	rate, err := s.exchangeRepository.GetRate(ctx, baseCurrency.ID, targetCurrency.ID)
 	if err != nil {
-		var notFoundErr *apperror.NotFoundError
-		if errors.As(err, &notFoundErr) {
+		if errors.Is(err, errs.ErrNotFound) {
 			log.Printf("exchange_service.exchange rate_not_found base_id=%d target_id=%d", baseCurrency.ID, targetCurrency.ID)
-			return dto.ExchangeDto{}, apperror.NotFound("exchange rate not found", "base_id="+fmt.Sprint(baseCurrency.ID)+" target_id="+fmt.Sprint(targetCurrency.ID))
+			return dto.ExchangeDto{}, fmt.Errorf("%w: exchange rate not found", errs.ErrNotFound)
 		}
 		log.Printf("exchange_service.exchange rate_error: %v", err)
-		return dto.ExchangeDto{}, apperror.Internal("get exchange rate", err.Error())
+		return dto.ExchangeDto{}, fmt.Errorf("%w: get exchange rate", errs.ErrInternal)
 	}
 
 	result := dto.ExchangeDto{
@@ -159,13 +156,12 @@ func (s *ExchangeService) Exchange(
 }
 
 func (s *ExchangeService) wrapCurrencyError(currencyRole string, code string, err error) error {
-	var notFoundErr *apperror.NotFoundError
-	if errors.As(err, &notFoundErr) {
+	if errors.Is(err, errs.ErrNotFound) {
 		log.Printf("exchange_service.exchange %s not_found code=%s", currencyRole, code)
-		return apperror.NotFound(currencyRole+" not found", "code="+code)
+		return fmt.Errorf("%w: %s not found", errs.ErrNotFound, currencyRole)
 	}
 	log.Printf("exchange_service.exchange %s error: %v", currencyRole, err)
-	return apperror.Internal("get "+currencyRole, err.Error())
+	return fmt.Errorf("%w: get %s", errs.ErrInternal, currencyRole)
 }
 
 func mapRate(rate entity.ExchangeRate) dto.ExchangeRateDto {

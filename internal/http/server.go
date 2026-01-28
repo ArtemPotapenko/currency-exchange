@@ -3,12 +3,13 @@ package http
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"currency-exchange/internal/dto"
-	apperror "currency-exchange/internal/error"
+	"currency-exchange/internal/errs"
 	"currency-exchange/internal/pagination"
 	"currency-exchange/internal/service"
 
@@ -21,35 +22,22 @@ type CurrencyServer struct {
 	mux             *http.ServeMux
 }
 
-func New(currencyService *service.CurrencyService, exchangeService *service.ExchangeService) http.Handler {
+func New(mux *http.ServeMux, currencyService *service.CurrencyService, exchangeService *service.ExchangeService) http.Handler {
 	s := &CurrencyServer{
 		currencyService: currencyService,
 		exchangeService: exchangeService,
-		mux:             http.NewServeMux(),
+		mux:             mux,
 	}
 
-	s.mux.HandleFunc("/currencies", s.handleCurrencies)
-	s.mux.HandleFunc("/currencies/", s.handleCurrencyByCode)
-	s.mux.HandleFunc("/rates", s.handleRates)
-	s.mux.HandleFunc("/rates/", s.handleRateByID)
-	s.mux.HandleFunc("/exchange", s.handleExchange)
+	s.mux.HandleFunc("GET /currencies", s.handleCurrenciesList)
+	s.mux.HandleFunc("POST /currencies", s.handleCurrenciesCreate)
+	s.mux.HandleFunc("GET /currencies/", s.handleCurrencyGetByCode)
+	s.mux.HandleFunc("POST /rates", s.handleRatesCreate)
+	s.mux.HandleFunc("GET /rates/", s.handleRateGetByID)
+	s.mux.HandleFunc("PUT /rates/", s.handleRateUpdateByID)
+	s.mux.HandleFunc("GET /exchange", s.handleExchangeGet)
 
-	return s
-}
-
-func (s *CurrencyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	s.mux.ServeHTTP(w, r)
-}
-
-func (s *CurrencyServer) handleCurrencies(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodPost:
-		s.handleCurrenciesPost(w, r)
-	case http.MethodGet:
-		s.handleCurrenciesGet(w, r)
-	default:
-		w.WriteHeader(http.StatusMethodNotAllowed)
-	}
+	return mux
 }
 
 // @Summary List currencies
@@ -62,10 +50,10 @@ func (s *CurrencyServer) handleCurrencies(w http.ResponseWriter, r *http.Request
 // @Failure 400 {object} dto.ErrorDto
 // @Failure 500 {object} dto.ErrorDto
 // @Router /currencies [get]
-func (s *CurrencyServer) handleCurrenciesGet(w http.ResponseWriter, r *http.Request) {
+func (s *CurrencyServer) handleCurrenciesList(w http.ResponseWriter, r *http.Request) {
 	pageNumber, pageSize, err := parsePageRequest(r)
 	if err != nil {
-		writeError(w, apperror.Validation("invalid pagination", err.Error()))
+		writeError(w, fmt.Errorf("%w: invalid pagination", errs.ErrValidation))
 		return
 	}
 	page, err := s.currencyService.GetAllCurrencyPage(
@@ -90,10 +78,10 @@ func (s *CurrencyServer) handleCurrenciesGet(w http.ResponseWriter, r *http.Requ
 // @Failure 400 {object} dto.ErrorDto
 // @Failure 500 {object} dto.ErrorDto
 // @Router /currencies [post]
-func (s *CurrencyServer) handleCurrenciesPost(w http.ResponseWriter, r *http.Request) {
+func (s *CurrencyServer) handleCurrenciesCreate(w http.ResponseWriter, r *http.Request) {
 	var req dto.CreateCurrencyRequest
 	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, apperror.Validation("invalid request", err.Error()))
+		writeError(w, fmt.Errorf("%w: invalid request", errs.ErrValidation))
 		return
 	}
 	currency, err := s.currencyService.CreateCurrency(r.Context(), req)
@@ -114,14 +102,10 @@ func (s *CurrencyServer) handleCurrenciesPost(w http.ResponseWriter, r *http.Req
 // @Failure 404 {object} dto.ErrorDto
 // @Failure 500 {object} dto.ErrorDto
 // @Router /currencies/{code} [get]
-func (s *CurrencyServer) handleCurrencyByCode(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
+func (s *CurrencyServer) handleCurrencyGetByCode(w http.ResponseWriter, r *http.Request) {
 	code := strings.TrimPrefix(r.URL.Path, "/currencies/")
 	if code == "" {
-		writeError(w, apperror.Validation("currency code is required", "empty code"))
+		writeError(w, fmt.Errorf("%w: currency code is required", errs.ErrValidation))
 		return
 	}
 	currency, err := s.currencyService.GetCurrencyByCode(r.Context(), code)
@@ -130,15 +114,6 @@ func (s *CurrencyServer) handleCurrencyByCode(w http.ResponseWriter, r *http.Req
 		return
 	}
 	writeJSON(w, http.StatusOK, currency)
-}
-
-func (s *CurrencyServer) handleRates(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodPost:
-		s.handleRatesPost(w, r)
-	default:
-		w.WriteHeader(http.StatusMethodNotAllowed)
-	}
 }
 
 // @Summary Create exchange rate
@@ -151,10 +126,10 @@ func (s *CurrencyServer) handleRates(w http.ResponseWriter, r *http.Request) {
 // @Failure 404 {object} dto.ErrorDto
 // @Failure 500 {object} dto.ErrorDto
 // @Router /rates [post]
-func (s *CurrencyServer) handleRatesPost(w http.ResponseWriter, r *http.Request) {
+func (s *CurrencyServer) handleRatesCreate(w http.ResponseWriter, r *http.Request) {
 	var req dto.CreateRateRequest
 	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, apperror.Validation("invalid request", err.Error()))
+		writeError(w, fmt.Errorf("%w: invalid request", errs.ErrValidation))
 		return
 	}
 	rate, err := s.exchangeService.CreateRate(r.Context(), req)
@@ -163,28 +138,6 @@ func (s *CurrencyServer) handleRatesPost(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	writeJSON(w, http.StatusCreated, rate)
-}
-
-func (s *CurrencyServer) handleRateByID(w http.ResponseWriter, r *http.Request) {
-	idStr := strings.TrimPrefix(r.URL.Path, "/rates/")
-	if idStr == "" {
-		writeError(w, apperror.Validation("rate id is required", "empty id"))
-		return
-	}
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		writeError(w, apperror.Validation("invalid rate id", err.Error()))
-		return
-	}
-
-	switch r.Method {
-	case http.MethodGet:
-		s.handleRateByIDGet(w, r, id)
-	case http.MethodPut:
-		s.handleRateByIDPut(w, r, id)
-	default:
-		w.WriteHeader(http.StatusMethodNotAllowed)
-	}
 }
 
 // @Summary Get exchange rate by id
@@ -197,7 +150,12 @@ func (s *CurrencyServer) handleRateByID(w http.ResponseWriter, r *http.Request) 
 // @Failure 404 {object} dto.ErrorDto
 // @Failure 500 {object} dto.ErrorDto
 // @Router /rates/{id} [get]
-func (s *CurrencyServer) handleRateByIDGet(w http.ResponseWriter, r *http.Request, id int64) {
+func (s *CurrencyServer) handleRateGetByID(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDFromPath(r.URL.Path, "/rates/")
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	rate, err := s.exchangeService.GetRateByID(r.Context(), id)
 	if err != nil {
 		writeError(w, err)
@@ -217,10 +175,15 @@ func (s *CurrencyServer) handleRateByIDGet(w http.ResponseWriter, r *http.Reques
 // @Failure 404 {object} dto.ErrorDto
 // @Failure 500 {object} dto.ErrorDto
 // @Router /rates/{id} [put]
-func (s *CurrencyServer) handleRateByIDPut(w http.ResponseWriter, r *http.Request, id int64) {
+func (s *CurrencyServer) handleRateUpdateByID(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDFromPath(r.URL.Path, "/rates/")
+	if err != nil {
+		writeError(w, err)
+		return
+	}
 	var req dto.UpdateRateRequest
 	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, apperror.Validation("invalid request", err.Error()))
+		writeError(w, fmt.Errorf("%w: invalid request", errs.ErrValidation))
 		return
 	}
 	rate, err := s.exchangeService.UpdateRate(r.Context(), id, req)
@@ -243,17 +206,13 @@ func (s *CurrencyServer) handleRateByIDPut(w http.ResponseWriter, r *http.Reques
 // @Failure 404 {object} dto.ErrorDto
 // @Failure 500 {object} dto.ErrorDto
 // @Router /exchange [get]
-func (s *CurrencyServer) handleExchange(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
+func (s *CurrencyServer) handleExchangeGet(w http.ResponseWriter, r *http.Request) {
 	baseCode := r.URL.Query().Get("base")
 	targetCode := r.URL.Query().Get("target")
 	amountStr := r.URL.Query().Get("amount")
 	amount, err := decimal.NewFromString(amountStr)
 	if err != nil {
-		writeError(w, apperror.Validation("invalid amount", err.Error()))
+		writeError(w, fmt.Errorf("%w: invalid amount", errs.ErrValidation))
 		return
 	}
 	result, err := s.exchangeService.Exchange(
@@ -287,6 +246,18 @@ func parsePageRequest(r *http.Request) (int32, int32, error) {
 	return int32(pageNumber), int32(pageSize), nil
 }
 
+func parseIDFromPath(path string, prefix string) (int64, error) {
+	idStr := strings.TrimPrefix(path, prefix)
+	if idStr == "" {
+		return 0, fmt.Errorf("%w: rate id is required", errs.ErrValidation)
+	}
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("%w: invalid rate id", errs.ErrValidation)
+	}
+	return id, nil
+}
+
 func decodeJSON(r *http.Request, target any) error {
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
@@ -301,28 +272,22 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 
 func writeError(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, apperror.ErrValidation):
-		var validationErr *apperror.ValidationError
-		if errors.As(err, &validationErr) {
-			writeJSON(w, http.StatusBadRequest, dto.ErrorDto{Message: validationErr.Message})
-			return
-		}
-		writeJSON(w, http.StatusBadRequest, dto.ErrorDto{Message: "validation error"})
-	case errors.Is(err, apperror.ErrNotFound):
-		var notFoundErr *apperror.NotFoundError
-		if errors.As(err, &notFoundErr) {
-			writeJSON(w, http.StatusNotFound, dto.ErrorDto{Message: notFoundErr.Message})
-			return
-		}
-		writeJSON(w, http.StatusNotFound, dto.ErrorDto{Message: "not found"})
-	case errors.Is(err, apperror.ErrInternal):
-		var internalErr *apperror.InternalError
-		if errors.As(err, &internalErr) {
-			writeJSON(w, http.StatusInternalServerError, dto.ErrorDto{Message: internalErr.Message})
-			return
-		}
+	case errors.Is(err, errs.ErrValidation):
+		writeJSON(w, http.StatusBadRequest, dto.ErrorDto{Message: errorMessage(err, errs.ErrValidation)})
+	case errors.Is(err, errs.ErrNotFound):
+		writeJSON(w, http.StatusNotFound, dto.ErrorDto{Message: errorMessage(err, errs.ErrNotFound)})
+	case errors.Is(err, errs.ErrInternal):
 		writeJSON(w, http.StatusInternalServerError, dto.ErrorDto{Message: "internal error"})
 	default:
 		writeJSON(w, http.StatusInternalServerError, dto.ErrorDto{Message: "internal error"})
 	}
+}
+
+func errorMessage(err error, sentinel error) string {
+	msg := err.Error()
+	prefix := sentinel.Error() + ": "
+	if strings.HasPrefix(msg, prefix) {
+		return strings.TrimPrefix(msg, prefix)
+	}
+	return msg
 }

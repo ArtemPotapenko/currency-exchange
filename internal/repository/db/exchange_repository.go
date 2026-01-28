@@ -2,8 +2,7 @@ package db
 
 import (
 	"context"
-	apperror "currency-exchange/internal/error"
-	"currency-exchange/internal/repository"
+	"currency-exchange/internal/errs"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -14,11 +13,16 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+type ExchangeRepository interface {
+	Create(ctx context.Context, rate entity.ExchangeRate) (int64, error)
+	Update(ctx context.Context, rate entity.ExchangeRate) error
+	GetByID(ctx context.Context, id int64) (entity.ExchangeRate, error)
+	GetRate(ctx context.Context, baseId int64, targetId int64) (decimal.Decimal, error)
+}
+
 type ExchangeRepositoryDB struct {
 	db *sql.DB
 }
-
-var _ repository.ExchangeRepository = (*ExchangeRepositoryDB)(nil)
 
 func NewExchangeRepository(db *sql.DB) *ExchangeRepositoryDB {
 	return &ExchangeRepositoryDB{db: db}
@@ -39,7 +43,7 @@ func (r *ExchangeRepositoryDB) Create(ctx context.Context, rate entity.ExchangeR
 	var id int64
 	if err := row.Scan(&id); err != nil {
 		log.Printf("exchange_repository.create error: %v", err)
-		return 0, apperror.Internal("db create exchange rate", err.Error())
+		return 0, fmt.Errorf("%w: db create exchange rate", errs.ErrInternal)
 	}
 
 	log.Printf("exchange_repository.create ok id=%d", id)
@@ -62,17 +66,17 @@ func (r *ExchangeRepositoryDB) Update(ctx context.Context, rate entity.ExchangeR
 	)
 	if err != nil {
 		log.Printf("exchange_repository.update error: %v", err)
-		return apperror.Internal("db update exchange rate", err.Error())
+		return fmt.Errorf("%w: db update exchange rate", errs.ErrInternal)
 	}
 
 	affected, err := result.RowsAffected()
 	if err != nil {
 		log.Printf("exchange_repository.update rows_affected_error: %v", err)
-		return apperror.Internal("db check exchange rate update", err.Error())
+		return fmt.Errorf("%w: db check exchange rate update", errs.ErrInternal)
 	}
 	if affected == 0 {
 		log.Printf("exchange_repository.update not_found id=%d", rate.ID)
-		return apperror.NotFound("exchange rate not found", "id="+fmt.Sprint(rate.ID))
+		return fmt.Errorf("%w: exchange rate not found", errs.ErrNotFound)
 	}
 
 	log.Printf("exchange_repository.update ok id=%d", rate.ID)
@@ -98,10 +102,10 @@ func (r *ExchangeRepositoryDB) GetByID(ctx context.Context, id int64) (entity.Ex
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			log.Printf("exchange_repository.get_by_id not_found id=%d", id)
-			return entity.ExchangeRate{}, apperror.NotFound("exchange rate not found", "id="+fmt.Sprint(id))
+			return entity.ExchangeRate{}, fmt.Errorf("%w: exchange rate not found", errs.ErrNotFound)
 		}
 		log.Printf("exchange_repository.get_by_id error: %v", err)
-		return entity.ExchangeRate{}, apperror.Internal("db get exchange rate by id", err.Error())
+		return entity.ExchangeRate{}, fmt.Errorf("%w: db get exchange rate by id", errs.ErrInternal)
 	}
 
 	log.Printf("exchange_repository.get_by_id ok id=%d", rate.ID)
@@ -148,10 +152,10 @@ func (r *ExchangeRepositoryDB) GetRate(ctx context.Context, baseId int64, target
 	).Scan(&rate); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			log.Printf("exchange_repository.get_rate not_found base_id=%d target_id=%d", baseId, targetId)
-			return decimal.Decimal{}, apperror.NotFound("exchange rate not found", "base_id="+fmt.Sprint(baseId)+" target_id="+fmt.Sprint(targetId))
+			return decimal.Decimal{}, fmt.Errorf("%w: exchange rate not found", errs.ErrNotFound)
 		}
 		log.Printf("exchange_repository.get_rate error: %v", err)
-		return decimal.Decimal{}, apperror.Internal("db get exchange rate", err.Error())
+		return decimal.Decimal{}, fmt.Errorf("%w: db get exchange rate", errs.ErrInternal)
 	}
 
 	log.Printf("exchange_repository.get_rate ok rate=%s", rate.String())

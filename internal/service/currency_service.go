@@ -4,10 +4,11 @@ import (
 	"context"
 	"currency-exchange/internal/dto"
 	"currency-exchange/internal/entity"
-	apperror "currency-exchange/internal/error"
+	"currency-exchange/internal/errs"
 	"currency-exchange/internal/pagination"
-	"currency-exchange/internal/repository"
+	repository "currency-exchange/internal/repository/db"
 	"errors"
+	"fmt"
 	"log"
 )
 
@@ -32,7 +33,7 @@ func (c *CurrencyService) CreateCurrency(ctx context.Context, request dto.Create
 	id, err := c.currencyRepository.Create(ctx, currency)
 	if err != nil {
 		log.Printf("currency_service.create_currency error: %v", err)
-		return dto.CurrencyDto{}, apperror.Internal("create currency", err.Error())
+		return dto.CurrencyDto{}, fmt.Errorf("%w: create currency", errs.ErrInternal)
 	}
 	currency.ID = id
 	log.Printf("currency_service.create_currency ok id=%d", id)
@@ -43,18 +44,17 @@ func (c *CurrencyService) GetCurrencyByCode(ctx context.Context, code string) (d
 	log.Printf("currency_service.get_currency_by_code start code=%s", code)
 	if code == "" {
 		log.Printf("currency_service.get_currency_by_code validation_error: empty code")
-		return dto.CurrencyDto{}, apperror.Validation("currency code is required", "empty code")
+		return dto.CurrencyDto{}, fmt.Errorf("%w: currency code is required", errs.ErrValidation)
 	}
 
 	currency, err := c.currencyRepository.GetByCode(ctx, code)
 	if err != nil {
-		var notFoundErr *apperror.NotFoundError
-		if errors.As(err, &notFoundErr) {
+		if errors.Is(err, errs.ErrNotFound) {
 			log.Printf("currency_service.get_currency_by_code not_found code=%s", code)
-			return dto.CurrencyDto{}, apperror.NotFound("currency not found", "code="+code)
+			return dto.CurrencyDto{}, fmt.Errorf("%w: currency not found", errs.ErrNotFound)
 		}
 		log.Printf("currency_service.get_currency_by_code error: %v", err)
-		return dto.CurrencyDto{}, apperror.Internal("get currency by code", err.Error())
+		return dto.CurrencyDto{}, fmt.Errorf("%w: get currency by code", errs.ErrInternal)
 	}
 
 	log.Printf("currency_service.get_currency_by_code ok id=%d", currency.ID)
@@ -65,16 +65,16 @@ func (c *CurrencyService) GetAllCurrencyPage(ctx context.Context, request pagina
 	log.Printf("currency_service.get_all_currency_page start page=%d size=%d", request.PageNumber, request.PageSize)
 	if request.PageNumber < 1 || request.PageSize < 1 {
 		log.Printf("currency_service.get_all_currency_page validation_error page=%d size=%d", request.PageNumber, request.PageSize)
-		return pagination.Page[dto.CurrencyDto]{}, apperror.Validation(
-			"pageNumber and pageSize must be greater than zero",
-			"pageNumber or pageSize less than 1",
+		return pagination.Page[dto.CurrencyDto]{}, fmt.Errorf(
+			"%w: pageNumber and pageSize must be greater than zero",
+			errs.ErrValidation,
 		)
 	}
 
 	page, err := c.currencyRepository.GetPage(ctx, request)
 	if err != nil {
 		log.Printf("currency_service.get_all_currency_page error: %v", err)
-		return pagination.Page[dto.CurrencyDto]{}, apperror.Internal("get currency page", err.Error())
+		return pagination.Page[dto.CurrencyDto]{}, fmt.Errorf("%w: get currency page", errs.ErrInternal)
 	}
 
 	items := make([]dto.CurrencyDto, 0, len(page.Items))

@@ -2,9 +2,8 @@ package db
 
 import (
 	"context"
-	apperror "currency-exchange/internal/error"
+	"currency-exchange/internal/errs"
 	"currency-exchange/internal/pagination"
-	"currency-exchange/internal/repository"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -13,11 +12,15 @@ import (
 	"currency-exchange/internal/entity"
 )
 
+type CurrencyRepository interface {
+	Create(ctx context.Context, currency entity.Currency) (int64, error)
+	GetByCode(ctx context.Context, code string) (entity.Currency, error)
+	GetPage(ctx context.Context, page pagination.PageRequest) (pagination.Page[entity.Currency], error)
+}
+
 type CurrencyRepositoryDB struct {
 	db *sql.DB
 }
-
-var _ repository.CurrencyRepository = (*CurrencyRepositoryDB)(nil)
 
 func NewCurrencyRepository(db *sql.DB) *CurrencyRepositoryDB {
 	return &CurrencyRepositoryDB{db: db}
@@ -38,7 +41,7 @@ func (r *CurrencyRepositoryDB) Create(ctx context.Context, currency entity.Curre
 	var id int64
 	if err := row.Scan(&id); err != nil {
 		log.Printf("currency_repository.create error: %v", err)
-		return 0, apperror.Internal("db create currency", err.Error())
+		return 0, fmt.Errorf("%w: db create currency", errs.ErrInternal)
 	}
 
 	log.Printf("currency_repository.create ok id=%d", id)
@@ -59,10 +62,10 @@ func (r *CurrencyRepositoryDB) GetByID(ctx context.Context, id int64) (entity.Cu
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			log.Printf("currency_repository.get_by_id not_found id=%d", id)
-			return entity.Currency{}, apperror.NotFound("currency not found", "id="+fmt.Sprint(id))
+			return entity.Currency{}, fmt.Errorf("%w: currency not found", errs.ErrNotFound)
 		}
 		log.Printf("currency_repository.get_by_id error: %v", err)
-		return entity.Currency{}, apperror.Internal("db get currency by id", err.Error())
+		return entity.Currency{}, fmt.Errorf("%w: db get currency by id", errs.ErrInternal)
 	}
 
 	log.Printf("currency_repository.get_by_id ok id=%d", currency.ID)
@@ -83,10 +86,10 @@ func (r *CurrencyRepositoryDB) GetByCode(ctx context.Context, code string) (enti
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			log.Printf("currency_repository.get_by_code not_found code=%s", code)
-			return entity.Currency{}, apperror.NotFound("currency not found", "code="+code)
+			return entity.Currency{}, fmt.Errorf("%w: currency not found", errs.ErrNotFound)
 		}
 		log.Printf("currency_repository.get_by_code error: %v", err)
-		return entity.Currency{}, apperror.Internal("db get currency by code", err.Error())
+		return entity.Currency{}, fmt.Errorf("%w: db get currency by code", errs.ErrInternal)
 	}
 
 	log.Printf("currency_repository.get_by_code ok id=%d", currency.ID)
@@ -103,7 +106,7 @@ func (r *CurrencyRepositoryDB) GetAll(ctx context.Context) ([]entity.Currency, e
 	)
 	if err != nil {
 		log.Printf("currency_repository.get_all error: %v", err)
-		return nil, apperror.Internal("db get all currencies", err.Error())
+		return nil, fmt.Errorf("%w: db get all currencies", errs.ErrInternal)
 	}
 	defer rows.Close()
 
@@ -112,14 +115,14 @@ func (r *CurrencyRepositoryDB) GetAll(ctx context.Context) ([]entity.Currency, e
 		currency, err := scanCurrency(rows)
 		if err != nil {
 			log.Printf("currency_repository.get_all scan_error: %v", err)
-			return nil, apperror.Internal("db scan currency", err.Error())
+			return nil, fmt.Errorf("%w: db scan currency", errs.ErrInternal)
 		}
 		currencies = append(currencies, currency)
 	}
 
 	if err := rows.Err(); err != nil {
 		log.Printf("currency_repository.get_all iterate_error: %v", err)
-		return nil, apperror.Internal("db iterate currencies", err.Error())
+		return nil, fmt.Errorf("%w: db iterate currencies", errs.ErrInternal)
 	}
 
 	log.Printf("currency_repository.get_all ok count=%d", len(currencies))
@@ -130,17 +133,13 @@ func (r *CurrencyRepositoryDB) GetPage(ctx context.Context, page pagination.Page
 	log.Printf("currency_repository.get_page start page=%d size=%d", page.PageNumber, page.PageSize)
 	if page.PageNumber < 1 || page.PageSize < 1 {
 		log.Printf("currency_repository.get_page validation_error page=%d size=%d", page.PageNumber, page.PageSize)
-		return pagination.Page[entity.Currency]{}, apperror.Validation("invalid page params", fmt.Sprintf(
-			"invalid page params: pageNumber=%d pageSize=%d",
-			page.PageNumber,
-			page.PageSize,
-		))
+		return pagination.Page[entity.Currency]{}, fmt.Errorf("%w: invalid page params", errs.ErrValidation)
 	}
 
 	var total int
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM currencies`).Scan(&total); err != nil {
 		log.Printf("currency_repository.get_page count_error: %v", err)
-		return pagination.Page[entity.Currency]{}, apperror.Internal("db count currencies", err.Error())
+		return pagination.Page[entity.Currency]{}, fmt.Errorf("%w: db count currencies", errs.ErrInternal)
 	}
 
 	limit := int64(page.PageSize)
@@ -156,7 +155,7 @@ func (r *CurrencyRepositoryDB) GetPage(ctx context.Context, page pagination.Page
 	)
 	if err != nil {
 		log.Printf("currency_repository.get_page query_error: %v", err)
-		return pagination.Page[entity.Currency]{}, apperror.Internal("db get currency page", err.Error())
+		return pagination.Page[entity.Currency]{}, fmt.Errorf("%w: db get currency page", errs.ErrInternal)
 	}
 	defer rows.Close()
 
@@ -165,14 +164,14 @@ func (r *CurrencyRepositoryDB) GetPage(ctx context.Context, page pagination.Page
 		currency, err := scanCurrency(rows)
 		if err != nil {
 			log.Printf("currency_repository.get_page scan_error: %v", err)
-			return pagination.Page[entity.Currency]{}, apperror.Internal("db scan currency", err.Error())
+			return pagination.Page[entity.Currency]{}, fmt.Errorf("%w: db scan currency", errs.ErrInternal)
 		}
 		currencies = append(currencies, currency)
 	}
 
 	if err := rows.Err(); err != nil {
 		log.Printf("currency_repository.get_page iterate_error: %v", err)
-		return pagination.Page[entity.Currency]{}, apperror.Internal("db iterate currency page", err.Error())
+		return pagination.Page[entity.Currency]{}, fmt.Errorf("%w: db iterate currency page", errs.ErrInternal)
 	}
 
 	log.Printf("currency_repository.get_page ok total=%d", total)

@@ -6,7 +6,7 @@ import (
 	"unicode/utf8"
 
 	"currency-exchange/internal/entity"
-	apperror "currency-exchange/internal/error"
+	"currency-exchange/internal/errs"
 
 	"github.com/shopspring/decimal"
 )
@@ -58,27 +58,16 @@ type ExchangeRequest struct {
 func (r CreateCurrencyRequest) Validate() error {
 	if len(r.Code) == 0 || utf8.RuneCountInString(r.Code) > entity.CurrencyCodeMaxLen {
 		log.Printf("create_currency_request validation_error code=%s", r.Code)
-		return apperror.Validation(
-			"invalid currency code",
-			"code must be 1.."+fmt.Sprint(entity.CurrencyCodeMaxLen)+" symbols",
-		)
+		return fmt.Errorf("%w: invalid currency code", errs.ErrValidation)
 	}
 	if len(r.Sign) == 0 || utf8.RuneCountInString(r.Sign) > entity.CurrencySignMaxLen {
 		log.Printf("create_currency_request validation_error sign=%s", r.Sign)
-		return apperror.Validation(
-			"invalid currency sign",
-			"sign must be 1.."+fmt.Sprint(entity.CurrencySignMaxLen)+" symbols",
-		)
+		return fmt.Errorf("%w: invalid currency sign", errs.ErrValidation)
 	}
 	if utf8.RuneCountInString(r.FullName) < entity.CurrencyFullNameMinLen ||
 		utf8.RuneCountInString(r.FullName) > entity.CurrencyFullNameMaxLen {
 		log.Printf("create_currency_request validation_error full_name=%s", r.FullName)
-		return apperror.Validation(
-			"invalid currency full name",
-			"full name length must be "+
-				fmt.Sprint(entity.CurrencyFullNameMinLen)+".."+
-				fmt.Sprint(entity.CurrencyFullNameMaxLen)+" symbols",
-		)
+		return fmt.Errorf("%w: invalid currency full name", errs.ErrValidation)
 	}
 	return nil
 }
@@ -102,11 +91,11 @@ func (r UpdateRateRequest) Validate() error {
 func (r ExchangeRequest) Validate() error {
 	if r.BaseCode == "" || r.TargetCode == "" {
 		log.Printf("exchange_request validation_error: empty code base=%s target=%s", r.BaseCode, r.TargetCode)
-		return apperror.Validation("currency codes are required", "base or target code is empty")
+		return fmt.Errorf("%w: currency codes are required", errs.ErrValidation)
 	}
 	if r.Amount.LessThanOrEqual(decimal.Zero) {
 		log.Printf("exchange_request validation_error: non_positive amount=%s", r.Amount.String())
-		return apperror.Validation("amount must be greater than zero", "amount="+r.Amount.String())
+		return fmt.Errorf("%w: amount must be greater than zero", errs.ErrValidation)
 	}
 	if err := validateAmountPrecision(r.Amount); err != nil {
 		log.Printf("exchange_request validation_error: %v", err)
@@ -117,20 +106,14 @@ func (r ExchangeRequest) Validate() error {
 
 func validateRatePrecision(rate decimal.Decimal) error {
 	if rate.Exponent() < -entity.ExchangeRateMaxScale {
-		return apperror.Validation(
-			"invalid exchange rate precision",
-			"rate must have no more than 6 decimal places",
-		)
+		return fmt.Errorf("%w: invalid exchange rate precision", errs.ErrValidation)
 	}
 	return nil
 }
 
 func validateAmountPrecision(amount decimal.Decimal) error {
 	if amount.Exponent() < -entity.ExchangeAmountMaxScale {
-		return apperror.Validation(
-			"invalid amount precision",
-			"amount must have no more than 6 decimal places",
-		)
+		return fmt.Errorf("%w: invalid amount precision", errs.ErrValidation)
 	}
 	return nil
 }
