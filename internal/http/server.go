@@ -31,10 +31,10 @@ func New(mux *http.ServeMux, currencyService *service.CurrencyService, exchangeS
 
 	s.mux.HandleFunc("GET /currencies", s.handleCurrenciesList)
 	s.mux.HandleFunc("POST /currencies", s.handleCurrenciesCreate)
-	s.mux.HandleFunc("GET /currencies/", s.handleCurrencyGetByCode)
+	s.mux.HandleFunc("GET /currencies/{code}", s.handleCurrencyGetByCode)
 	s.mux.HandleFunc("POST /rates", s.handleRatesCreate)
-	s.mux.HandleFunc("GET /rates/", s.handleRateGetByID)
-	s.mux.HandleFunc("PUT /rates/", s.handleRateUpdateByID)
+	s.mux.HandleFunc("GET /rates/{id}", s.handleRateGetByID)
+	s.mux.HandleFunc("PUT /rates/{id}", s.handleRateUpdateByID)
 	s.mux.HandleFunc("GET /exchange", s.handleExchangeGet)
 
 	return mux
@@ -103,7 +103,7 @@ func (s *CurrencyServer) handleCurrenciesCreate(w http.ResponseWriter, r *http.R
 // @Failure 500 {object} dto.ErrorDto
 // @Router /currencies/{code} [get]
 func (s *CurrencyServer) handleCurrencyGetByCode(w http.ResponseWriter, r *http.Request) {
-	code := strings.TrimPrefix(r.URL.Path, "/currencies/")
+	code := r.PathValue("code")
 	if code == "" {
 		writeError(w, fmt.Errorf("%w: currency code is required", errs.ErrValidation))
 		return
@@ -151,7 +151,7 @@ func (s *CurrencyServer) handleRatesCreate(w http.ResponseWriter, r *http.Reques
 // @Failure 500 {object} dto.ErrorDto
 // @Router /rates/{id} [get]
 func (s *CurrencyServer) handleRateGetByID(w http.ResponseWriter, r *http.Request) {
-	id, err := parseIDFromPath(r.URL.Path, "/rates/")
+	id, err := parseID(r.PathValue("id"))
 	if err != nil {
 		writeError(w, err)
 		return
@@ -176,7 +176,7 @@ func (s *CurrencyServer) handleRateGetByID(w http.ResponseWriter, r *http.Reques
 // @Failure 500 {object} dto.ErrorDto
 // @Router /rates/{id} [put]
 func (s *CurrencyServer) handleRateUpdateByID(w http.ResponseWriter, r *http.Request) {
-	id, err := parseIDFromPath(r.URL.Path, "/rates/")
+	id, err := parseID(r.PathValue("id"))
 	if err != nil {
 		writeError(w, err)
 		return
@@ -246,8 +246,7 @@ func parsePageRequest(r *http.Request) (int32, int32, error) {
 	return int32(pageNumber), int32(pageSize), nil
 }
 
-func parseIDFromPath(path string, prefix string) (int64, error) {
-	idStr := strings.TrimPrefix(path, prefix)
+func parseID(idStr string) (int64, error) {
 	if idStr == "" {
 		return 0, fmt.Errorf("%w: rate id is required", errs.ErrValidation)
 	}
